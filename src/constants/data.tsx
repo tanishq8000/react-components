@@ -4,12 +4,16 @@ import { lazy, type ComponentType, type JSX } from "react";
 interface Project {
   name: string;
   path: string;
-  // Component is a dynamically loading React component
-  Component: ComponentType<any>;
+  // Component uses the strict type for no props
+  Component: ComponentType<Record<string, never>>;
 }
 
+// Define a strict type for a React component that takes no props.
+type NoPropsStrictComponent =
+  | ComponentType<Record<string, never>>
+  | (() => JSX.Element);
+
 // Vite API: Automatically finds all .tsx and .jsx files in the specified directory.
-// It maps the file path to an asynchronous function (the module loader) that performs the dynamic import.
 const componentModules = import.meta.glob("../Projects/*.{tsx,jsx}");
 
 export const projects: Project[] = Object.entries(componentModules).map(
@@ -20,23 +24,19 @@ export const projects: Project[] = Object.entries(componentModules).map(
     // 2. Get the name without the extension (e.g., "Counter")
     const nameWithoutExtension = fileName.replace(/\.(tsx|jsx)$/, "");
 
-    // 3. Convert CamelCase/PascalCase to kebab-case for the URL path (e.g., "Counter" -> "counter")
+    // 3. Convert CamelCase/PascalCase to kebab-case for the URL path
     const routeName = nameWithoutExtension
       .replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, "$1$2")
-      .toLowerCase();
+      .toLowerCase(); // 4. Create the component loader using React.lazy
 
-    // 4. Create the component loader using React.lazy
     const LazyComponent = lazy(async () => {
-      // Call the dynamic import function provided by Vite.
-      // We use a type assertion to correctly inform TypeScript about the module structure:
-      // an object with a 'default' property containing the component.
+      // Use the strict type assertion here
       const module = await (
         moduleLoader as () => Promise<{
-          default: ComponentType<any> | (() => JSX.Element);
+          default: NoPropsStrictComponent;
         }>
-      )();
+      )(); // Assume the component is the default export
 
-      // Assume the component is the default export
       return { default: module.default };
     });
 
@@ -47,6 +47,3 @@ export const projects: Project[] = Object.entries(componentModules).map(
     } as Project;
   }
 );
-
-// Optional logging to verify the structure
-// console.log("Dynamically discovered routes:", projects.map(p => ({ name: p.name, path: p.path })));
